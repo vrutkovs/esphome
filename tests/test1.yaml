@@ -1299,6 +1299,9 @@ sensor:
       id: temp_etuve
     humidity:
       name: "Humidity hyt271"
+  - platform: ble_rssi
+    ibeacon_uuid: '11223344-5566-7788-99aa-bbccddeeff00'
+    id: ble_rssi_tracker
 
 esp32_touch:
   setup_mode: false
@@ -3358,3 +3361,8 @@ lcd_menu:
       on_prev:
         then:
           lambda: 'ESP_LOGI("lcd_menu", "custom prev: %s", it->get_text().c_str());'
+mqtt_room:
+  room: Example Room
+  trackers:
+    - device_id: ble_rssi_tracker
+      name: BLE Tracker
