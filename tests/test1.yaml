@@ -3362,7 +3362,5 @@ lcd_menu:
         then:
           lambda: 'ESP_LOGI("lcd_menu", "custom prev: %s", it->get_text().c_str());'
 mqtt_room:
-  room: Example Room
-  trackers:
-    - device_id: ble_rssi_tracker
-      name: BLE Tracker
+  state_topic: esphome/rooms
+  room: $roomname
