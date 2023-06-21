@@ -29,6 +29,7 @@ class MqttRoomTracker : public Component {
   void update_distance_sensor(int rssi);
 
  protected:
+  std::string address_;
   std::string device_id_;
   std::string name_;
   int signal_power_;

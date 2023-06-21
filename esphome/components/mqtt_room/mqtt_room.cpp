@@ -7,14 +7,18 @@ namespace mqtt_room {
 static const char *const TAG = "mqtt_room";
 
 void MqttRoomTracker::set_rssi_sensor(sensor::Sensor *rssi_sensor) {
+  ESP_LOGD(TAG, "MqttRoomTracker::set_rssi_sensor+");
   this->rssi_sensor_ = rssi_sensor;
   this->rssi_sensor_->add_on_state_callback([this](float rssi) { this->update_distance_sensor(rssi); });
+  ESP_LOGD(TAG, "MqttRoomTracker::set_rssi_sensor-");
 }
 
 void MqttRoomTracker::set_distance_sensor(sensor::Sensor *distance_sensor) {
+  ESP_LOGD(TAG, "MqttRoomTracker::set_distance_sensor+");
   this->distance_sensor_ = distance_sensor;
   distance_sensor->add_on_state_callback(
       [this](float distance) { this->mqtt_room_->send_tracker_update(this->device_id_, this->name_, distance); });
+  ESP_LOGD(TAG, "MqttRoomTracker::set_distance_sensor-");
 }
 
 void MqttRoomTracker::dump_config() {
@@ -27,6 +31,7 @@ void MqttRoomTracker::dump_config() {
 }
 
 void MqttRoomTracker::update_rssi_sensor(int rssi, int signal_power) {
+  ESP_LOGD(TAG, "MqttRoomTracker::update_rssi_sensor+");
   if (signal_power != 0) {
     this->signal_power_ = signal_power;
   }
@@ -36,9 +41,11 @@ void MqttRoomTracker::update_rssi_sensor(int rssi, int signal_power) {
   } else {
     this->rssi_sensor_->publish_state(rssi);
   }
+  ESP_LOGD(TAG, "MqttRoomTracker::update_rssi_sensor-");
 }
 
 void MqttRoomTracker::update_distance_sensor(int rssi) {
+  ESP_LOGD(TAG, "MqttRoomTracker::update_distance_sensor+");
   float ratio = (this->signal_power_ - rssi) / (35.0f);
   float distance = pow(10, ratio);
 
@@ -47,6 +54,7 @@ void MqttRoomTracker::update_distance_sensor(int rssi) {
   } else {
     this->distance_sensor_->publish_state(distance);
   }
+  ESP_LOGD(TAG, "MqttRoomTracker::update_distance_sensor-");
 }
 
 void MqttRoom::dump_config() {
@@ -55,6 +63,7 @@ void MqttRoom::dump_config() {
 }
 
 void MqttRoom::send_tracker_update(std::string &id, std::string &name, float distance) {
+  ESP_LOGD(TAG, "MqttRoomTracker::send_tracker_update+");
   ESP_LOGD(TAG, "'%s': Sending state %f m with 2 decimals of accuracy", id.c_str(), distance);
   distance = std::round(distance * 100) / 100;
 
@@ -63,9 +72,12 @@ void MqttRoom::send_tracker_update(std::string &id, std::string &name, float dis
     root["id"] = id;
     root["name"] = (name.empty()) ? id : name;
   });
+  ESP_LOGD(TAG, "MqttRoomTracker::send_tracker_update-");
 }
 
 bool MqttRoom::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+  ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", device.address_str().c_str());
+
   std::string id;
   int signal_power = (!device.get_tx_powers().empty()) ? -65 + device.get_tx_powers().at(0) : 0;
 
@@ -73,26 +85,29 @@ bool MqttRoom::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     id = std::string("name:") + MqttRoom::format_device_name(device.get_name());
   }
 
-  for (auto &it : device.get_service_uuids()) {
-    if (this->tile_uuid_ == it) {
-      id = std::string("tile:") + MqttRoom::format_device_address(device.address());
-    } else {
-      ESP_LOGV(TAG, "Found device with a unknown service uuid: '%s' and mac: '%s'", it.to_string().c_str(),
-               device.address_str().c_str());
-    }
-  }
+  // ESP_LOGD(TAG, "device '%s': fetching service uuids", device.address_str().c_str());
+  // for (auto &it : device.get_service_uuids()) {
+  //   if (this->tile_uuid_ == it) {
+  //     id = std::string("tile:") + MqttRoom::format_device_address(device.address());
+  //   } else {
+  //     ESP_LOGD(TAG, "Found device with a unknown service uuid: '%s' and mac: '%s'", it.to_string().c_str(),
+  //              device.address_str().c_str());
+  //   }
+  // }
 
-  for (auto &it : device.get_service_datas()) {
-    if (it.uuid == this->exposure_uuid_) {
-      char str[12];
-      sprintf(str, "exp:%u", it.data.size());
-      id = std::string(str);
-    } else {
-      ESP_LOGV(TAG, "Found device with a unknown service datas uuid: '%s' and mac: '%s'", it.uuid.to_string().c_str(),
-               device.address_str().c_str());
-    }
-  }
+  // ESP_LOGD(TAG, "device '%s': fetching service data", device.address_str().c_str());
+  // for (auto &it : device.get_service_datas()) {
+  //   if (it.uuid == this->exposure_uuid_) {
+  //     char str[12];
+  //     sprintf(str, "exp:%u", it.data.size());
+  //     id = std::string(str);
+  //   } else {
+  //     ESP_LOGD(TAG, "Found device with a unknown service datas uuid: '%s' and mac: '%s'", it.uuid.to_string().c_str(),
+  //              device.address_str().c_str());
+  //   }
+  // }
 
+  ESP_LOGD(TAG, "device '%s': fetching manufacturer data", device.address_str().c_str());
   for (auto &it : device.get_manufacturer_datas()) {
     if (it.uuid == this->apple_uuid_) {
       if (it.data.size() == 23 && it.data[0] == 0x02 && it.data[1] == 0x15) {
@@ -115,26 +130,34 @@ bool MqttRoom::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     } else if (it.uuid == this->google_uuid_) {
       id = std::string("google:") + MqttRoom::format_device_address(device.address());
     } else {
-      ESP_LOGV(TAG, "Found device with a unknown manufacture id: '%s' and mac: '%s'", it.uuid.to_string().c_str(),
+      ESP_LOGD(TAG, "Found device with a unknown manufacture id: '%s' and mac: '%s'", it.uuid.to_string().c_str(),
                device.address_str().c_str());
     }
   }
 
   if (!id.empty()) {
-    ESP_LOGD(TAG, "Found device with id: '%s'", id.c_str());
-    for (MqttRoomTracker *tracker : this->trackers_) {
-      if (tracker->get_device_id() == id) {
-        tracker->update_rssi_sensor(device.get_rssi(), signal_power);
-      }
-    }
-  } else {
-    ESP_LOGV(TAG, "Unknown BLE Device found with adress: '%s'", device.address_str().c_str());
+    return true;
   }
+
+  // if (!id.empty()) {
+  //   ESP_LOGD(TAG, "Found device with id: '%s'", id.c_str());
+  //   for (MqttRoomTracker *tracker : this->trackers_) {
+  //     if (tracker->get_device_id() == id) {
+  //       ESP_LOGD(TAG, "matching id found: '%s'", id.c_str());
+  //       tracker->update_rssi_sensor(device.get_rssi(), signal_power);
+  //       return true;
+  //     }
+  //   }
+  // } else {
+  //   ESP_LOGD(TAG, "Unknown BLE Device found with adress: '%s'", device.address_str().c_str());
+  // }
+  ESP_LOGD(TAG, "done, moving on");
 
   return false;
 }
 
 std::string MqttRoom::format_device_name(const std::string &device_name) {
+  ESP_LOGD(TAG, "MqttRoomTracker::format_device_name+");
   char cstr[256];
   int i = 0;
   bool previous_is_space = false;
@@ -151,13 +174,16 @@ std::string MqttRoom::format_device_name(const std::string &device_name) {
   }
   cstr[i] = 0;
   auto str = std::string(cstr);
+  ESP_LOGD(TAG, "MqttRoomTracker::format_device_name-");
   return str.substr(str.find_first_not_of('-'), str.find_last_not_of('-') + 1);
 }
 
 std::string MqttRoom::format_device_address(const uint8_t *device_address) {
+  ESP_LOGD(TAG, "MqttRoomTracker::format_device_address+");
   char mac[13];
   snprintf(mac, sizeof(mac), "%02x%02x%02x%02x%02x%02x", device_address[0], device_address[1], device_address[2],
            device_address[3], device_address[4], device_address[5]);
+  ESP_LOGD(TAG, "MqttRoomTracker::format_device_address-");
   return mac;
 }
 
